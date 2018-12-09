@@ -1,4 +1,4 @@
-import sys, getopt, requests, threading 
+import sys, getopt, requests, threading, os
 
 def argsInput(argv):
    numConnection = ''
@@ -39,7 +39,7 @@ def argsInput(argv):
    print 'o', outputLocation
 
 lock = threading.Lock()
-fileLocation = "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png"
+fileLocation = "http://download.thinkbroadband.com/10MB.zip"
 file_name = fileLocation.split('/')[-1]
 global file_size
 numConnection = 4
@@ -65,7 +65,7 @@ def handlerURL(start, end, url, filename):
 def downloadFileURL(): 
    r = requests.head(fileLocation) 
    statusCode = r.status_code 
-   print statusCode
+   print "Status Code --> ", statusCode
    if statusCode == 404:
       print 'File not found'
       sys.exit()
@@ -76,12 +76,26 @@ def downloadFileURL():
    except: 
       print "Invalid URL"
       return
+   if os.path.exists(file_name):
+      outputFile = open(file_name, "ab")
+      fileExistSize = os.path.getsize(file_name)
+      print "already download file size", fileExistSize
+      if fileExistSize == file_size:
+         print "File already downloaded!"
+         sys.exit()
+      start = fileExistSize + 1
+      file_size = file_size - fileExistSize
+   else:
+      start = 0
    part = int(file_size) / numConnection 
    fp = open(file_name, "wb") 
    fp.write('\0' * file_size) 
    fp.close() 
    for i in range(numConnection): 
-      start = part * i 
+      if i == 0:
+         start += part * i
+      else:
+         start = part * i 
       end = start + part  
       t = threading.Thread(target=handlerURL, kwargs={'start': start, 'end': end, 'url': fileLocation, 'filename': file_name})
       t.setDaemon(True) 
@@ -96,4 +110,4 @@ def downloadFileURL():
 
 #argsInput(sys.argv[1:])
 downloadFileURL()
-print totalDownloaded
+print "Total downloaded --> ", totalDownloaded

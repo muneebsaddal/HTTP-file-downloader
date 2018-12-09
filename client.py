@@ -38,28 +38,30 @@ def argsInput(argv):
    print 'f', fileLocation
    print 'o', outputLocation
 
-
+lock = threading.Lock()
 fileLocation = "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png"
 file_name = fileLocation.split('/')[-1]
-file_size = 0
+global file_size
 numConnection = 4
-
+totalDownloaded = 0
 
 def handlerURL(start, end, url, filename): 
-   
-   # specify the starting and ending of the file 
+   global totalDownloaded
    headers = {'Range': 'bytes=%d-%d' % (start, end)} 
-
-   # request the specified part and get into variable  
    r = requests.get(url, headers=headers, stream=True) 
-
-   # open the file and write the content of the html page 
-   # into file. 
-   with open(filename, "r+b") as fp: 
+   with open(filename, "r+b") as fp:
+      threadedSize = end - start
+      threadedDown = 0
       fp.seek(start) 
       var = fp.tell()
-      fp.write(r.content) 
-
+      buffer = r.content
+      threadedDown += len(buffer)
+      fp.write(buffer)
+      totalDownloaded += threadedDown
+      status = r"%10d  [%3.f%%]" % (threadedDown, threadedDown * 100. / threadedSize)
+      #status = status + chr(8)*(len(status)+1)
+      print status
+ 
 def downloadFileURL(): 
    r = requests.head(fileLocation) 
    statusCode = r.status_code 
@@ -68,7 +70,7 @@ def downloadFileURL():
       print 'File not found'
       sys.exit()
    elif statusCode == 200:
-      numConnection = 1
+      numConnection = 3
    try: 
       file_size = int(r.headers['content-length']) 
    except: 
@@ -80,20 +82,18 @@ def downloadFileURL():
    fp.close() 
    for i in range(numConnection): 
       start = part * i 
-      end = start + part 
-      # create a Thread with start and end locations 
-      t = threading.Thread(target=handlerURL, 
-         kwargs={'start': start, 'end': end, 'url': fileLocation, 'filename': file_name}) 
+      end = start + part  
+      t = threading.Thread(target=handlerURL, kwargs={'start': start, 'end': end, 'url': fileLocation, 'filename': file_name})
       t.setDaemon(True) 
       t.start() 
-   main_thread = threading.current_thread() 
+   main_thread = threading.current_thread()
    for t in threading.enumerate(): 
       if t is main_thread: 
          continue
-      t.join() 
+      t.join()
    print '%s downloaded' % file_name 
-
 
 
 #argsInput(sys.argv[1:])
 downloadFileURL()
+print totalDownloaded

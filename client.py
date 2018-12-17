@@ -5,6 +5,8 @@ import sys
 import threading
 import urllib
 import urllib2
+import time
+from threading import Timer
 
 def argsInput(argv):
     numConnection = ''
@@ -45,42 +47,50 @@ def argsInput(argv):
     print 'o', outputLocation
 
 
-#fileLocation = "https://sample-videos.com/audio/mp3/wave.mp3"
-fileLocation = 'file:' + urllib.pathname2url(r'c:\xampp\htdocs\downloadables\Ep-18.The.Apartment.mp4')
+fileLocation = "http://ipv6.download.thinkbroadband.com/10MB.zip"
+#fileLocation = 'file:' + urllib.pathname2url(r'c:\xampp\htdocs\downloadables\Ep-18.The.Apartment.mp4')
 if fileLocation[0] == 'h':
    localFlag = False
 elif fileLocation[0] == 'f':
    localFlag = True
 file_name = fileLocation.split('/')[-1]
 #file_name = "test.txt"
-global file_size
+file_size = 0
 numConnection = 1
 totalDownloaded = 0
 print localFlag
 
 def handlerURL(start, end, url, filename):
     global totalDownloaded
+    global file_size
     headers = {'Range': 'bytes=%d-%d' % (start, end)}
     if localFlag:
       request = urllib2.Request(url, headers=headers)
       r = urllib2.urlopen(request)
     else:
       r = requests.get(url, headers=headers, stream=True)
+      file_size = int(r.headers['content-length'])
     with open(filename, "r+b") as fp:
-        threadedSize = end - start
-        threadedDown = 0
-        fp.seek(start)
-        var = fp.tell()
-        if localFlag:
-           buffer = r.read()
-        else:
-           buffer = r.content
-        threadedDown += len(buffer)
-        fp.write(buffer)
-        totalDownloaded += threadedDown
-        status = r"%10d  [%3.f%%]" % (threadedDown, threadedDown * 100. / threadedSize)
-        # status = status + chr(8)*(len(status)+1)
-        print status
+        while True:
+           threadedSize = end - start
+           threadedDown = 0
+           fp.seek(start)
+           var = fp.tell()
+           if localFlag:
+              buffer = r.read(1024)
+           else:
+              buffer = r.content
+           if not buffer:
+            break
+           threadedDown += len(buffer)
+           fp.write(buffer)
+           totalDownloaded += threadedDown
+           #print buffer
+           per = totalDownloaded * 100 / threadedSize
+           status = "%d  [%.2f]" % (totalDownloaded, per)
+           print status
+           if totalDownloaded == file_size:
+            break
 
 
 def downloadFileURL():
@@ -109,7 +119,7 @@ def downloadFileURL():
     if os.path.exists(file_name):
         outputFile = open(file_name, "ab")
         fileExistSize = os.path.getsize(file_name)
-        print "already download file size", fileExistSize
+        print "already download file size -->", fileExistSize
         if fileExistSize == file_size:
             print "File already downloaded!"
             sys.exit()

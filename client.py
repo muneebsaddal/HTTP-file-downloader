@@ -1,137 +1,92 @@
-import getopt
 import os
-import requests
 import sys
-import threading
-import urllib
+import getopt
 import urllib2
-import time
-from threading import Timer
+import threading
 
-def argsInput(argv):
-    numConnection = ''
-    metricInterval = ''
-    connectionType = ''
-    fileLocation = ''
-    outputLocation = ''
-    resumeFlag = 'false'
+globalnumConnection = ''
+metricInterval = ''
+connectionType = ''
+fileLocation = ''
+outputLocation = ''
+resumeFlag = 'false'
+argv = sys.argv[1:]
+try:
+    opts, args = getopt.getopt(argv, "rn:i:c:f:o:", ["nConn=", "tInter=", "cType=", "iFile=", "oFile="])
+except getopt.GetoptError:
+    print 'Input arguments error'
+    sys.exit()
+for opt, arg in opts:
+    if opt == '-r':
+        resumeFlag = 'true'
+    elif opt in ("-n", "--nConn"):
+        numConnection = arg
+    elif opt in ("-i", "--tInter"):
+        metricInterval = arg
+    elif opt in ("-c", "--cType"):
+        connectionType = arg
+    elif opt in ("-f", "--iFile"):
+        fileLocation = arg
+    elif opt in ("-o", "--oFile"):
+        outputLocation = arg
 
-    try:
-        opts, args = getopt.getopt(argv, "rn:i:c:f:o:", ["nConn=", "tInter=", "cType=", "iFile=", "oFile="])
-    except getopt.GetoptError:
-        print 'Input arguments error'
-        sys.exit()
-    for opt, arg in opts:
-        if opt == '-r':
-            resumeFlag = 'true'
-        elif opt in ("-n", "--nConn"):
-            numConnection = arg
-        elif opt in ("-i", "--tInter"):
-            metricInterval = arg
-        elif opt in ("-c", "--cType"):
-            connectionType = arg
-        elif opt in ("-f", "--iFile"):
-            fileLocation = arg
-        elif opt in ("-o", "--oFile"):
-            outputLocation = arg
+if numConnection is '' or metricInterval is '' or connectionType is '' or fileLocation is '' or outputLocation is '':
+    print '--Input Argument error--\nEnter all the required arguments'
+    sys.exit()
 
-    if numConnection is '' or metricInterval is '' or connectionType is '' or fileLocation is '' or outputLocation is '':
-        print '--Input Argument error--\nEnter all the required arguments'
-        sys.exit()
-
-    print 'r', resumeFlag
-    print 'n', numConnection
-    print 'i', metricInterval
-    print 'c', connectionType
-    print 'f', fileLocation
-    print 'o', outputLocation
-
-
-fileLocation = "http://ipv6.download.thinkbroadband.com/10MB.zip"
-#fileLocation = 'file:' + urllib.pathname2url(r'c:\xampp\htdocs\downloadables\Ep-18.The.Apartment.mp4')
-if fileLocation[0] == 'h':
-   localFlag = False
-elif fileLocation[0] == 'f':
-   localFlag = True
 file_name = fileLocation.split('/')[-1]
-#file_name = "test.txt"
+file_name = outputLocation + file_name
 file_size = 0
-numConnection = 1
 totalDownloaded = 0
-print localFlag
+
 
 def handlerURL(start, end, url, filename):
     global totalDownloaded
     global file_size
     headers = {'Range': 'bytes=%d-%d' % (start, end)}
-    if localFlag:
-      request = urllib2.Request(url, headers=headers)
-      r = urllib2.urlopen(request)
-    else:
-      r = requests.get(url, headers=headers, stream=True)
-      file_size = int(r.headers['content-length'])
-    with open(filename, "r+b") as fp:
-        while True:
-           threadedSize = end - start
-           threadedDown = 0
-           fp.seek(start)
-           var = fp.tell()
-           if localFlag:
-              buffer = r.read(1024)
-           else:
-              buffer = r.content
-           if not buffer:
-            break
-           threadedDown += len(buffer)
-           fp.write(buffer)
-           totalDownloaded += threadedDown
-           #print buffer
-           per = totalDownloaded * 100 / threadedSize
-           status = "%d  [%.2f]" % (totalDownloaded, per)
-           print status
-           if totalDownloaded == file_size:
-            break
-
+    request = urllib2.Request(url, headers=headers)
+    r = urllib2.urlopen(request)
+    file_size = int(r.headers['content-length'])
+    with open(filename, "r+b") as fp:  
+      threadedSize = end - start
+      threadedDown = 0
+      fp.seek(start)
+      var = fp.tell()
+      buffer = r.read()
+      threadedDown += len(buffer)
+      fp.write(buffer)
+      totalDownloaded += threadedDown
+      per = (threadedDown / file_size) * 100
+      status = "Bytes of data downloaded --> %d  Percentage of total file downloaded --> [%.2f]" % (totalDownloaded, per)
+      print "\n\nCurrent Thread in working:"
+      print threading.current_thread()
+      print status
 
 def downloadFileURL():
     global numConnection
-    if localFlag:
-       request = urllib2.Request(fileLocation)
-       response = urllib2.urlopen(request)
-       r = response.info()
-    else:
-       r = requests.head(fileLocation)
-       statusCode = r.status_code
-       print "Status Code --> ", statusCode
-       if statusCode == 404:
-           print 'File not found'
-           sys.exit()
-       elif statusCode == 200:
-           numConnection = 1
+    request = urllib2.Request(fileLocation)
+    response = urllib2.urlopen(request)
+    r = response.info()
     try:
-        if localFlag:
-           file_size = int(r['Content-length'])
-        else:
-           file_size = int(r.headers['content-length'])
+        file_size = int(r['Content-length'])
     except:
         print "Invalid URL"
         return
     if os.path.exists(file_name):
         outputFile = open(file_name, "ab")
         fileExistSize = os.path.getsize(file_name)
-        print "already download file size -->", fileExistSize
         if fileExistSize == file_size:
-            print "File already downloaded!"
+            print "\n\n*******************File already downloaded*******************\n"
             sys.exit()
         start = fileExistSize + 1
         file_size = file_size - fileExistSize
     else:
         start = 0
-    part = int(file_size) / numConnection
+    part = int(file_size) / int(numConnection)
     fp = open(file_name, "wb")
     fp.write('\0' * file_size)
     fp.close()
-    for i in range(numConnection):
+    for i in range(int(numConnection)):
         if i == 0:
             start += part * i
         else:
@@ -145,9 +100,10 @@ def downloadFileURL():
         if t is main_thread:
             continue
         t.join()
-    print '%s downloaded' % file_name
 
-
-# argsInput(sys.argv[1:])
 downloadFileURL()
-print "Total downloaded --> ", totalDownloaded
+totalDownloaded = totalDownloaded/1000000
+if totalDownloaded >= file_size:
+	print "\n\n*******************Download Complete*******************\nTotal MBs downloaded --> ", totalDownloaded
+else:
+	print "\n\n*******************Download failed*******************\n"

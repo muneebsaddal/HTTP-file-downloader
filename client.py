@@ -4,12 +4,7 @@ import getopt
 import urllib2
 import threading
 
-globalnumConnection = ''
-metricInterval = ''
-connectionType = ''
-fileLocation = ''
-outputLocation = ''
-resumeFlag = 'false'
+#Getting input arguments and storing in variables
 argv = sys.argv[1:]
 try:
     opts, args = getopt.getopt(argv, "rn:i:c:f:o:", ["nConn=", "tInter=", "cType=", "iFile=", "oFile="])
@@ -30,54 +25,57 @@ for opt, arg in opts:
     elif opt in ("-o", "--oFile"):
         outputLocation = arg
 
+#If input argument format not correct, show error and exit
 if numConnection is '' or metricInterval is '' or connectionType is '' or fileLocation is '' or outputLocation is '':
     print '--Input Argument error--\nEnter all the required arguments'
     sys.exit()
 
+#Formating file name and initializing global variables
 file_name = fileLocation.split('/')[-1]
 file_name = outputLocation + file_name
-file_size = 0
 totalDownloaded = 0
+file_size = 0
 
-
+#Thread function, downloads and writes respective part of file
 def handlerURL(start, end, url, filename):
     global totalDownloaded
     global file_size
-    headers = {'Range': 'bytes=%d-%d' % (start, end)}
+    headers = {'Range': 'bytes=%d-%d' % (start, end)}   #Define range of part of file to download
     request = urllib2.Request(url, headers=headers)
-    r = urllib2.urlopen(request)
-    file_size = int(r.headers['content-length'])
-    with open(filename, "r+b") as fp:  
+    r = urllib2.urlopen(request)    #Get request to the server
+    file_size = int(r.headers['content-length'])    #Get file size
+    with open(filename, "r+b") as fp:  #Create/Open the file to write
       threadedSize = end - start
       threadedDown = 0
-      fp.seek(start)
-      var = fp.tell()
-      buffer = r.read()
-      threadedDown += len(buffer)
-      fp.write(buffer)
-      totalDownloaded += threadedDown
-      per = (threadedDown / file_size) * 100
+      fp.seek(start)    #start writing from the position assigned to the thread
+      buffer = r.read() #write the data into buffer
+      threadedDown += len(buffer)   #update downloaded file length
+      fp.write(buffer)  #write into file 
+      totalDownloaded += threadedDown   #update total data downloaded
+      per = (threadedDown / file_size) * 100    #percentage of downloaded by thread
       status = "Bytes of data downloaded --> %d  Percentage of total file downloaded --> [%.2f]" % (totalDownloaded, per)
       print "\n\nCurrent Thread in working:"
-      print threading.current_thread()
+      print threading.current_thread()  #print the current thread in working
       print status
 
 def downloadFileURL():
     global numConnection
     request = urllib2.Request(fileLocation)
     response = urllib2.urlopen(request)
-    r = response.info()
+    r = response.info()     #get header data
     try:
-        file_size = int(r['Content-length'])
+        file_size = int(r['Content-length'])    #get file length
     except:
         print "Invalid URL"
-        return
+        sys.exit()
     if os.path.exists(file_name):
-        outputFile = open(file_name, "ab")
+        outputFile = open(file_name, "r")
         fileExistSize = os.path.getsize(file_name)
+        # If file already downloaded, end program
         if fileExistSize == file_size:
             print "\n\n*******************File already downloaded*******************\n"
             sys.exit()
+        # If partially downloaded, resume
         start = fileExistSize + 1
         file_size = file_size - fileExistSize
     else:
@@ -86,6 +84,7 @@ def downloadFileURL():
     fp = open(file_name, "wb")
     fp.write('\0' * file_size)
     fp.close()
+    # Make threads for each connection
     for i in range(int(numConnection)):
         if i == 0:
             start += part * i
@@ -96,13 +95,16 @@ def downloadFileURL():
         t.setDaemon(True)
         t.start()
     main_thread = threading.current_thread()
+    # Join threads to synchronise
     for t in threading.enumerate():
         if t is main_thread:
             continue
         t.join()
 
+#Call to the downlaod file function
 downloadFileURL()
-totalDownloaded = totalDownloaded/1000000
+
+#Showing Final output message
 if totalDownloaded >= file_size:
 	print "\n\n*******************Download Complete*******************\nTotal MBs downloaded --> ", totalDownloaded
 else:
